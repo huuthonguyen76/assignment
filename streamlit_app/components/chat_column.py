@@ -18,7 +18,17 @@ def render_chat_column():
     # User input
     topic = st.chat_input("Ask a research question…")
     if topic:
-        run_id = api_client.start_run(get_session_id(), topic)
+        try:
+            run_id = api_client.start_run(get_session_id(), topic)
+        except Exception as e:
+            msg = str(e)
+            if "503" in msg or "orchestrator not configured" in msg.lower():
+                st.error(
+                    "Backend is not ready. Ensure `.env` has API keys, then "
+                    "restart `make backend` in its terminal.")
+            else:
+                st.error(f"Could not start research run: {e}")
+            return
         add_run(run_id, topic)
         st.rerun()
 
@@ -30,6 +40,10 @@ def render_chat_column():
         with st.expander(f"Run: {run['topic']}", expanded=is_active):
             render_pending_question(run["run_id"])
             if run["ui_state"].tree is not None:
-                render_tree(run["ui_state"].tree, run["run_id"])
+                render_tree(
+                    run["ui_state"].tree,
+                    run["run_id"],
+                    key_prefix=f"chat_{run['run_id']}_",
+                )
             else:
                 st.info("Starting…")

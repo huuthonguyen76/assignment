@@ -16,40 +16,67 @@ _STATUS_ICON = {
 }
 
 
-def render_tree(node: Node, run_id: str, depth: int = 0):
+def render_tree(
+    node: Node,
+    run_id: str,
+    depth: int = 0,
+    *,
+    key_prefix: str = "",
+):
     """Top-level entry point. Renders one Node and all its descendants."""
-    _render_node(node, run_id, depth)
+    _render_node(node, run_id, depth, key_prefix=key_prefix, path=())
 
 
-def _render_node(node: Node, run_id: str, depth: int):
+def _render_node(
+    node: Node,
+    run_id: str,
+    depth: int,
+    *,
+    key_prefix: str,
+    path: tuple[int, ...],
+):
     icon = _STATUS_ICON.get(node.status, "?")
     label = f"{icon} **{node.role}**"
     if node.title:
         label += f" — {node.title}"
     expanded = node.status in ("running", "awaiting_user", "failed")
     with st.expander(label, expanded=expanded):
-        _render_node_body(node, run_id)
+        _render_node_body(node, run_id, key_prefix=key_prefix, path=path)
         # Children: side-by-side if multiple are running concurrently
         running_children = [c for c in node.children if c.status == "running"]
         if len(running_children) >= 2 and len(running_children) == len(
                 [c for c in node.children if c.status != "queued"]):
             cols = st.columns(len(node.children))
-            for col, child in zip(cols, node.children):
+            for i, (col, child) in enumerate(zip(cols, node.children)):
                 with col:
-                    _render_node(child, run_id, depth + 1)
+                    _render_node(
+                        child, run_id, depth + 1,
+                        key_prefix=key_prefix, path=path + (i,),
+                    )
         else:
-            for child in node.children:
-                _render_node(child, run_id, depth + 1)
+            for i, child in enumerate(node.children):
+                _render_node(
+                    child, run_id, depth + 1,
+                    key_prefix=key_prefix, path=path + (i,),
+                )
 
 
-def _render_node_body(node: Node, run_id: str):
+def _render_node_body(
+    node: Node,
+    run_id: str,
+    *,
+    key_prefix: str,
+    path: tuple[int, ...],
+):
     if node.summary:
         st.caption(node.summary)
     if node.errors:
         for err in node.errors:
             st.error(f"[{err.where}] {err.message}")
         if node.role == "web-researcher":
-            if st.button(f"Retry this researcher", key=f"retry_{node.id}"):
+            path_key = ".".join(str(i) for i in path) or "root"
+            btn_key = f"{key_prefix}retry_{path_key}_{node.id}"
+            if st.button(f"Retry this researcher", key=btn_key):
                 api_client.retry_node(run_id, node.id)
                 st.rerun()
     for ev in node.events:

@@ -67,7 +67,8 @@ class RunOrchestrator:
         )
 
     async def _run(self, run_id: str, topic: str):
-        root = "root"
+        pfx = run_id[:8]
+        root = f"{pfx}_root"
         try:
             # Root node + run_started
             await self.db.execute(
@@ -80,7 +81,7 @@ class RunOrchestrator:
                 payload=RunStartedPayload(topic=topic))
 
             # Lead node
-            lead_id = "lead"
+            lead_id = f"{pfx}_lead"
             await self._create_node(run_id, lead_id, root, "lead-analyst",
                                     None, "running")
 
@@ -145,7 +146,7 @@ class RunOrchestrator:
                     successful_research_ids.append(nid)
 
             # Sequential data-analyst
-            data_id = "data"
+            data_id = f"{pfx}_data"
             await self._create_node(run_id, data_id, lead_id, "data-analyst",
                                     None, "running")
             data_sub = TaggingSubscriber(self.bus, run_id, data_id, lead_id)
@@ -160,7 +161,7 @@ class RunOrchestrator:
             await self._set_status(run_id, data_id, lead_id, "completed")
 
             # Sequential report-writer
-            report_id = "report"
+            report_id = f"{pfx}_report"
             await self._create_node(run_id, report_id, lead_id,
                                     "report-writer", None, "running")
             report_sub = TaggingSubscriber(self.bus, run_id, report_id, lead_id)

@@ -31,16 +31,13 @@ class OpenCodeZenClient:
         self.max_retries = max_retries
         self.timeout = timeout
 
-    async def chat_call(
-        self, *, system: str, user: str, temperature: float = 0.2,
+    async def _raw_call(
+        self, *, messages: list[dict], temperature: float = 0.2,
         tools: list[dict] | None = None,
     ) -> dict:
         payload: dict[str, Any] = {
             "model": self.model,
-            "messages": [
-                {"role": "system", "content": system},
-                {"role": "user", "content": user},
-            ],
+            "messages": messages,
             "temperature": temperature,
         }
         if tools:
@@ -57,6 +54,8 @@ class OpenCodeZenClient:
                     )
                 if r.status_code == 429 or r.status_code >= 500:
                     raise LLMError(f"{r.status_code}: {r.text[:200]}")
+                if r.status_code >= 400:
+                    raise LLMError(f"{r.status_code}: {r.text[:500]}")
                 r.raise_for_status()
                 return r.json()
             except (httpx.TransportError, LLMError) as e:
@@ -65,6 +64,28 @@ class OpenCodeZenClient:
                     raise
                 await asyncio.sleep(0.5 * (2 ** attempt))
         raise last_err  # unreachable
+
+    async def chat_call(
+        self, *, system: str, user: str, temperature: float = 0.2,
+        tools: list[dict] | None = None,
+    ) -> dict:
+        return await self._raw_call(
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+            temperature=temperature,
+            tools=tools,
+        )
+
+    async def messages_call(
+        self, *, messages: list[dict], temperature: float = 0.2,
+        tools: list[dict] | None = None,
+    ) -> dict:
+        """Multi-turn call with arbitrary message history."""
+        return await self._raw_call(
+            messages=messages, temperature=temperature, tools=tools,
+        )
 
     async def json_call(
         self, *, system: str, user: str,

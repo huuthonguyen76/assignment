@@ -4,7 +4,7 @@ install:
 	uv venv && uv pip install -e ".[dev]"
 
 backend:
-	uv run uvicorn backend.main:app --reload --port 8000
+	uv run uvicorn backend.main:app --reload --port 8000 --reload-exclude ".venv" --reload-exclude ".data"
 
 ui:
 	uv run streamlit run streamlit_app/app.py --server.port 8501

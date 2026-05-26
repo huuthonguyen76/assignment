@@ -103,6 +103,11 @@ def apply_event(state: UIState, ev: AgentEvent) -> None:
         target = state.tree.find(p.node_id_ref) if state.tree else None
         if target is not None:
             target.errors.append(p)
+            if not p.recoverable:
+                target.status = "failed"
+        # Also mark root as failed so polling stops
+        if state.tree and not p.recoverable:
+            state.tree.status = "failed"
     elif t == EventType.RUN_COMPLETED:
         if state.tree:
             state.tree.status = "completed"

@@ -1,5 +1,9 @@
 """FastAPI app for Deep Analyst."""
 from __future__ import annotations
+from dotenv import load_dotenv
+
+load_dotenv(override=True)
+
 import asyncio
 import json
 import os
@@ -180,8 +184,8 @@ async def list_session_runs(session_id: str):
 
 
 class _RealLeadLLM:
-    """Lead decompose uses OpenCode Zen json_call directly; per-subagent step
-    loops are driven by OpenHands SDK Conversations."""
+    """Lead decompose uses json_call; per-subagent step loops use
+    DirectResearcherLLM (OpenAI tool-calling, no openhands-sdk required)."""
     def __init__(self, client: OpenCodeZenClient):
         self.client = client
         self._per_sub: dict[str, object] = {}
@@ -195,37 +199,22 @@ class _RealLeadLLM:
             schema_hint=DECOMPOSE_SCHEMA_HINT,
         )
 
-    def _ohll_for(self, subtopic: str):
-        from backend.agents.openhands_adapter import OpenHandsConversationLLM
+    def _llm_for(self, subtopic: str):
+        from backend.agents.direct_llm import DirectResearcherLLM
         from backend.agents.web_researcher import WEB_RESEARCHER_PROMPT
         from backend.agents.data_analyst import DATA_ANALYST_PROMPT
         from backend.agents.report_writer import REPORT_WRITER_PROMPT
         if subtopic in self._per_sub:
             return self._per_sub[subtopic]
-        prompt = WEB_RESEARCHER_PROMPT
         if subtopic == "__data__":
             prompt = DATA_ANALYST_PROMPT
         elif subtopic == "__report__":
             prompt = REPORT_WRITER_PROMPT
-        ohll = OpenHandsConversationLLM(
-            system_prompt=prompt,
-            model=self.client.model, api_key=self.client.api_key,
-            base_url=self.client.base_url,
-            tools=[
-                {"name": "tavily_search",
-                 "parameters": {"query": "string",
-                                "max_results": "integer"}},
-                {"name": "write_artifact",
-                 "parameters": {"name": "string", "content": "string",
-                                "kind": "string"}},
-                {"name": "ask_user",
-                 "parameters": {"question": "string",
-                                "options": "array"}},
-            ],
-        )
-        self._per_sub[subtopic] = ohll
-        return ohll
+        else:
+            prompt = WEB_RESEARCHER_PROMPT
+        llm = DirectResearcherLLM(system_prompt=prompt, client=self.client)
+        self._per_sub[subtopic] = llm
+        return llm
 
     async def step(self, history, subtopic=None):
-        ohll = self._ohll_for(subtopic or "default")
-        return await ohll.step(history)
+        return await self._llm_for(subtopic or "default").step(history)
