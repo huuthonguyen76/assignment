@@ -4,6 +4,8 @@
 
 A real-time multi-agent research platform that makes the invisible visible — every tool call, thinking step, parallel branch, and human-in-the-loop pause rendered live as a navigable trace tree.
 
+Demo link: https://www.loom.com/share/a0efddc7404140dfbbfb9a04d268db15
+
 ---
 
 ## Architecture Overview
